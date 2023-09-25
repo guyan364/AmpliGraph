@@ -41,6 +41,7 @@ class NoBackend:
         root_directory=None,
         use_filter=False,
         verbose=False,
+        data_label=False,
     ):
         """Initialise NoBackend.
 
@@ -73,6 +74,7 @@ class NoBackend:
             self.root_directory = root_directory
         self.use_filter = use_filter
         self.sources = {}
+        self.data_label = data_label
 
     def _add_dataset(self, data_source, dataset_type):
         msg = "Adding datasets to NoBackend not possible."
@@ -90,9 +92,16 @@ class NoBackend:
         """Get the output signature for the tf.data.Dataset object."""
         triple_tensor = tf.TensorSpec(shape=(None, 3), dtype=tf.int32)
         if self.data_shape > 3:
-            weights_tensor = tf.TensorSpec(
-                shape=(None, self.data_shape - 3), dtype=tf.float32
-            )
+            if self.data_label:
+                weights_tensor = tf.TensorSpec(
+                    shape = (None, self.data_shape-3),
+                    dtype=tf.int32
+                )
+                return (triple_tensor, weights_tensor)
+            else:
+                weights_tensor = tf.TensorSpec(
+                    shape=(None, self.data_shape - 3), dtype=tf.float32
+                )
             if self.use_filter:
                 return (
                     triple_tensor,
@@ -595,6 +604,7 @@ class GraphDataLoader:
         parent=None,
         in_memory=False,
         use_filter=False,
+        data_label=False
     ):
         """Initialise persistent/in-memory data storage.
 
@@ -667,6 +677,8 @@ class GraphDataLoader:
             logger.error(msg)
             raise Exception(msg)
         if isinstance(backend, type) and backend != NoBackend:
+            if data_label:
+                raise ValueError
             self.backend = backend(
                 "database_{}_{}.db".format(
                     datetime.now().strftime("%d-%m-%Y_%I-%M-%S_%f_%p"),
@@ -697,8 +709,11 @@ class GraphDataLoader:
                 parent=self.parent,
                 in_memory=self.in_memory,
                 use_filter=self.use_filter,
+                data_label=data_label
             )
         else:
+            if data_label:
+                raise ValueError
             self.backend = backend
 
         self.backend._load(self.data_source, dataset_type=self.dataset_type)

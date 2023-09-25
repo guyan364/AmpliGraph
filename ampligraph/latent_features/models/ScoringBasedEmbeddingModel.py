@@ -103,6 +103,7 @@ class ScoringBasedEmbeddingModel(tf.keras.Model):
         seed=0,
         max_ent_size=None,
         max_rel_size=None,
+        data_label=False,
     ):
         """
         Initializes the scoring based embedding model using the user specified scoring function.
@@ -127,6 +128,8 @@ class ScoringBasedEmbeddingModel(tf.keras.Model):
             Maximum number of entities that can occur in any partition (default: `None`).
         max_rel_size: int
             Maximum number of relations that can occur in any partition (default: `None`).
+        data_label: bool
+            Input data has label or not (default: `False`)
         """
         super(ScoringBasedEmbeddingModel, self).__init__()
         # set the random seed
@@ -182,6 +185,7 @@ class ScoringBasedEmbeddingModel(tf.keras.Model):
         self.seed = seed
         self.base_dir = tempfile.gettempdir()
         self.partitioner_metadata = {}
+        self.data_label = data_label
 
     def is_fit(self):
         """Check whether the model has been fitted already."""
@@ -391,7 +395,9 @@ class ScoringBasedEmbeddingModel(tf.keras.Model):
         """
         if self.data_shape > 3:
             triples = data[0]
-            if self.data_handler._adapter.use_filter:
+            if self.data_shape == 4 and self.data_label:
+                labels = data[-1]
+            elif self.data_handler._adapter.use_filter:
                 weights = data[2]
             else:
                 weights = data[1]
@@ -414,12 +420,21 @@ class ScoringBasedEmbeddingModel(tf.keras.Model):
                 score_neg = non_linearity(score_neg) * weights_neg
 
             # compute the loss
-            loss = self.compiled_loss(
-                score_pos,
-                score_neg,
-                self.eta,
-                regularization_losses=self.losses,
-            )
+            if self.data_label:
+                loss = self.compiled_loss(
+                    score_pos,
+                    score_neg,
+                    self.eta,
+                    regularization_losses=self.losses,
+                    labels=labels
+                )
+            else:
+                loss = self.compiled_loss(
+                    score_pos,
+                    score_neg,
+                    self.eta,
+                    regularization_losses=self.losses,
+                )
         try:
             # minimize the loss and update the trainable variables
             self.optimizer.minimize(
@@ -750,6 +765,7 @@ class ScoringBasedEmbeddingModel(tf.keras.Model):
                 # indexer
                 use_indexer=self.data_indexer,
                 partitioning_k=partitioning_k,
+                data_label=self.data_label
             )
 
             self.partitioner_metadata = (
@@ -791,11 +807,14 @@ class ScoringBasedEmbeddingModel(tf.keras.Model):
                         "structural_wt": structure_weight,
                     }
                 else:
-                    print(
-                        "Data shape is {}: not only triples were given, but focusE is not active!".format(
-                            self.data_shape
+                    if self.data_shape == 4 and self.data_label:
+                        print("Enable data labels")
+                    else:
+                        print(
+                            "Data shape is {}: not only triples were given, but focusE is not active!".format(
+                                self.data_shape
+                            )
                         )
-                    )
 
             # Container that configures and calls `tf.keras.Callback`s.
             if not isinstance(callbacks, callbacks_module.CallbackList):

@@ -27,6 +27,7 @@ class DataHandler:
         use_indexer=True,
         use_filter=True,
         partitioning_k=1,
+        data_label=False,
     ):
         """Initializes the DataHandler
 
@@ -58,14 +59,19 @@ class DataHandler:
         self._model = model
         self._inferred_steps = None
         self.using_partitioning = False
+        self.data_label = data_label
 
         if partitioning_k <= 0:
             raise ValueError("Incorrect value specified to partitioning_k")
 
         if isinstance(x, GraphDataLoader):
+            if data_label:
+                raise ValueError
             self._adapter = x
             self._parent_adapter = self._adapter
         elif isinstance(x, AbstractGraphPartitioner):
+            if data_label:
+                raise ValueError
             self._parent_adapter = x._data
             self._adapter = x
             self.using_partitioning = True
@@ -81,6 +87,7 @@ class DataHandler:
                 use_indexer=use_indexer,
                 use_filter=use_filter,
                 in_memory=True,
+                data_label=data_label
             )
             self._parent_adapter = self._adapter
         if partitioning_k > 1:
